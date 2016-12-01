@@ -8,8 +8,8 @@
 #include <stdio.h>
 #include <stdlib.h>  
 
-#define NUM_WRITERS 10
-#define NUM_READERS 100
+#define NUM_WRITERS 30
+#define NUM_READERS 400
 
 	void* WriterV1(void* arg);
 	void* ReaderV1(void* arg);
@@ -31,26 +31,27 @@
 
 	void* WriterV1(void* arg) {
 		
-		printf("Inside of Writer\n");
+	//	printf("Inside of Writer\n");
 		
 		Database* db = (Database*) arg;
 		
-		setLock(&resourceLock);
-		//sem_wait(&resourceSem);
+		//setLock(&resourceLock);
+		sem_wait(&resourceSem);
 		
 		printf("Writer locked resource\n");
 		
 		
-		/*int wait = rand() % 100 + 1;
-		wait *= 1000;
-		for (int k = 0; k < wait; k++);*/
+		int wait = rand() % 100 + 1;
+		wait *= 100000;
+		for (int k = 0; k < wait; k++);
 		
 		
 		db->value += 5;
+		printf("------------------------Writing %d to the shared variable------------------------\n", db->value);
 		
 		
-		resetLock(&resourceLock);
-		//sem_post(&resourceSem);
+		//resetLock(&resourceLock);
+		sem_post(&resourceSem);
 		
 		printf("Writer unlocked resource\n");
 		
@@ -61,7 +62,7 @@
 
 	void* ReaderV1(void* arg) {
 		
-		printf("Inside of Reader\n");
+		//printf("Inside of Reader\n");
 	
 		Database* db = (Database*) arg;
 	
@@ -70,17 +71,16 @@
 		db->readers++;
 		
 		if (db->readers == 1) {
-			//sem_wait(&resourceSem);
-			setLock(&resourceLock);
+			sem_wait(&resourceSem);
+			//setLock(&resourceLock);
+			printf("Reader locked resource\n");
 		}
-		
-		printf("Reader locked resource\n");
 		
 		pthread_mutex_unlock(&mutexLock);
 		
-		/*int wait = rand() % 100 + 1;
-		wait *= 1000;
-		for (int k = 0; k < wait; k++);*/
+		int wait = rand() % 100 + 1;
+		wait *= 100000;
+		for (int k = 0; k < wait; k++);
 		
 		printf("The value of the resource in the database is: %d\n", db->value);
 		
@@ -89,11 +89,10 @@
 		db->readers--;
 		
 		if (db->readers == 0) {
-			//sem_post(&resourceSem);
-			resetLock(&resourceLock);
+			sem_post(&resourceSem);
+			//resetLock(&resourceLock);
+			printf("Reader unlocked resource\n");
 		}
-		
-		printf("Reader unlocked resource\n");
 		
 		
 		pthread_mutex_unlock(&mutexLock);
@@ -109,6 +108,10 @@
 		Database db = {0, 0};
 		db.value = 0;
 		db.readers = 0;
+		
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 		
 		resourceLock = 0;
 		
@@ -128,12 +131,18 @@
 		
 		int j = 0;
 		for (int k = 0; k < NUM_READERS; k++) {
-			pthread_create(&readerThread[k], NULL, ReaderV1, arg);
-			if (k % 10 == 0) {
-				pthread_create(&writerThread[j], NULL, WriterV1, arg);
+			pthread_create(&readerThread[k], &attr, ReaderV1, arg);
+			if (k % 10 == 0 && j < NUM_WRITERS) {
+				pthread_create(&writerThread[j], &attr, WriterV1, arg);
 				j++;
 			}
 		}
+	
+		for (int h = 0; h < NUM_READERS; h++)
+			pthread_join(readerThread[h], NULL);
+		
+		for (int h = 0; h < NUM_WRITERS; h++)
+			pthread_join(writerThread[h], NULL);
 	
 		pthread_exit(NULL);
 		
