@@ -6,11 +6,15 @@
 #include <pthread.h>
 #include <semaphore.h>
 #include <stdio.h>
+#include <stdlib.h>  
+
+#define NUM_WRITERS 10
+#define NUM_READERS 100
 
 	void* WriterV1(void* arg);
 	void* ReaderV1(void* arg);
-	void setLock(int lock);
-	void resetLock(int lock);
+	void setLock(int* lock);
+	void resetLock(int* lock);
 	
 	pthread_mutex_t mutexLock;
 	int resourceLock;
@@ -31,17 +35,22 @@
 		
 		Database* db = (Database*) arg;
 		
-		//setLock(resourceLock);
-		sem_wait(&resourceSem);
+		setLock(&resourceLock);
+		//sem_wait(&resourceSem);
 		
 		printf("Writer locked resource\n");
+		
+		
+		/*int wait = rand() % 100 + 1;
+		wait *= 1000;
+		for (int k = 0; k < wait; k++);*/
 		
 		
 		db->value += 5;
 		
 		
-		//resetLock(resourceLock);
-		sem_post(&resourceSem);
+		resetLock(&resourceLock);
+		//sem_post(&resourceSem);
 		
 		printf("Writer unlocked resource\n");
 		
@@ -61,13 +70,17 @@
 		db->readers++;
 		
 		if (db->readers == 1) {
-			sem_wait(&resourceSem);
-			//setLock(resourceLock);
+			//sem_wait(&resourceSem);
+			setLock(&resourceLock);
 		}
 		
 		printf("Reader locked resource\n");
 		
 		pthread_mutex_unlock(&mutexLock);
+		
+		/*int wait = rand() % 100 + 1;
+		wait *= 1000;
+		for (int k = 0; k < wait; k++);*/
 		
 		printf("The value of the resource in the database is: %d\n", db->value);
 		
@@ -76,8 +89,8 @@
 		db->readers--;
 		
 		if (db->readers == 0) {
-			sem_post(&resourceSem);
-			//resetLock(resourceLock);
+			//sem_post(&resourceSem);
+			resetLock(&resourceLock);
 		}
 		
 		printf("Reader unlocked resource\n");
@@ -110,13 +123,18 @@
 		
 		void *arg = (void*)(&db);
 		
-		pthread_t readerThread;
-		pthread_t writerThread;
+		pthread_t readerThread[NUM_READERS];
+		pthread_t writerThread[NUM_WRITERS];
 		
-
-		pthread_create(&readerThread, NULL, ReaderV1, arg);
-		pthread_create(&writerThread, NULL, WriterV1, arg);
-
+		int j = 0;
+		for (int k = 0; k < NUM_READERS; k++) {
+			pthread_create(&readerThread[k], NULL, ReaderV1, arg);
+			if (k % 10 == 0) {
+				pthread_create(&writerThread[j], NULL, WriterV1, arg);
+				j++;
+			}
+		}
+	
 		pthread_exit(NULL);
 		
 		
@@ -125,11 +143,11 @@
 	
 	}
 	
-	void setLock(int lock) {
+	void setLock(int* lock) {
 		
 		while (1) {
 			
-			int check = __sync_val_compare_and_swap(&lock, 0, 1);
+			int check = __sync_val_compare_and_swap(&(*lock), 0, 1);
 			
 			if (check == 0)
 				break;
@@ -138,9 +156,9 @@
 		
 	}
 	
-	void resetLock(int lock) {
+	void resetLock(int* lock) {
 		
-		__sync_val_compare_and_swap(&lock, 1, 0);
+		__sync_val_compare_and_swap(&(*lock), 1, 0);
 		
 	}
 
