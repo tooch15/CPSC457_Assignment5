@@ -11,8 +11,8 @@
 	void* WriterV2(void* arg);
 	void* ReaderV2(void* arg);
 	
-#define NUM_WRITERS 10
-#define NUM_READERS 100
+#define NUM_WRITERS 30
+#define NUM_READERS 400
 
 typedef struct {
 	int writers;
@@ -27,6 +27,8 @@ typedef struct {
 	pthread_mutex_t readtry; //Used by readers/writers
 	sem_t resource;
 	
+	int value;
+	
 } database;
 
 
@@ -38,17 +40,27 @@ typedef struct {
 		db->writers++;
 		if(db->writers == 1){
 			pthread_mutex_lock(&(db->readtry));
-			
 		}
 		pthread_mutex_unlock(&(db->wmutex));
 		
 		//Lock resource
-		sem_wait(&(db->resource));		
-		
+		sem_wait(&(db->resource));	
+		printf("Writer locked resource\n");
+
 		//<Critical Section>
+		int wait = rand() % 100 + 1;
+		wait *= 100000;
+		for (int k = 0; k < wait; k++);
+		
+		
+		db->value += 5;
+		printf("------------------------Writing %d to the shared variable------------------------\n", db->value);
+		
 		
 		//<Exit Section>
 		sem_post(&(db->resource));
+		printf("Writer unlocked resource\n");
+
 		pthread_mutex_lock(&(db->wmutex));
 		db->writers--;
 		if(db->writers == 0){
@@ -71,19 +83,26 @@ typedef struct {
 		db->readers++;
 		if(db->readers == 1){
 			sem_wait(&(db->resource));
+			printf("Reader locked resource\n");
+
 		}
 		pthread_mutex_unlock(&(db->rmutex));
 		pthread_mutex_unlock(&(db->readtry));
 		pthread_mutex_unlock(&(db->rentry));
 		
 		//<Critical Section>
+		int wait = rand() % 100 + 1;
+		wait *= 100000;
+		for (int k = 0; k < wait; k++);
 		
+		printf("The value of the resource in the database is: %d\n", db->value);
 		
 		//<Exit Section>
 		pthread_mutex_lock(&(db->rmutex));
 		db->readers--;
 		if(db->readers == 0){
 			sem_post(&(db->resource));
+			printf("Reader unlocked resource\n");
 		}
 		pthread_mutex_unlock(&(db->rmutex));
 		
@@ -97,6 +116,7 @@ typedef struct {
 		database db;
 		db.readers = 0;
 		db.writers = 0;
+		db.value = 0;
 		
 		//Initialize mutexes
 		int errorCheck = pthread_mutex_init(&db.wmutex, NULL);
