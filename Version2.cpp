@@ -8,6 +8,9 @@
 #include <cstdio>
 #include <cstdlib>
 
+	void* WriterV2(void* arg);
+	void* ReaderV2(void* arg);
+
 typedef struct {
 	int writers;
 	int readers;
@@ -24,7 +27,7 @@ typedef struct {
 } database;
 
 
-	void WriterV2(void* input) {
+	void* WriterV2(void* input) {
 		database* db = (database*) input;
 		
 		//<Entry Section>
@@ -55,10 +58,12 @@ typedef struct {
 		}
 		pthread_mutex_unlock(&(db->wmutex));
 		
+		pthread_exit(NULL);
+		
 	}
 
 
-	void ReaderV2(void* input){
+	void* ReaderV2(void* input){
 		database* db = (database*) input;
 		
 		//<Entry Section>
@@ -88,6 +93,8 @@ typedef struct {
 		}
 		pthread_mutex_unlock(&(db->rmutex));
 		
+		pthread_exit(NULL);
+		
 	}
 
 
@@ -114,8 +121,28 @@ typedef struct {
 		}
 		
 		//Create threads, TODO
-		WriterV2(&db);
-		ReaderV2(&db);
+		
+		void *arg = (void*)(&db);
+		pthread_attr_t attr;
+		pthread_attr_init(&attr);
+		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
+		
+		pthread_t writerThread;
+		pthread_t readerThread;
+		
+		pthread_create(&readerThread, &attr, ReaderV2, arg);
+		pthread_create(&writerThread, &attr, WriterV2, arg);
+		
+		int join_status = pthread_join(writerThread, NULL);
+		if(join_status){
+			printf("join_status for writer: %d\n", join_status);
+		}
+		join_status = pthread_join(readerThread, NULL);
+		if(join_status){
+			printf("join_status for reader: %d\n", join_status);
+		}
+		pthread_exit(NULL);
+		
 		
 		//Destroy mutexes
 		
