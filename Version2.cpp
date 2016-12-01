@@ -4,48 +4,70 @@
 // Favours writers!
 
 #include <pthread.h>
-#include <semaphores.h>
+#include <semaphore.h>
 #include <cstdio>
+#include <cstdlib>
 
 typedef struct {
-	int writers = 0;
-	int readers = 0;
+	int writers;
+	int readers;
 	
 	//Semaphores - wmutex, rmutex and rentry are mutexes. 
 	//readtry and resource are semaphores
 	pthread_mutex_t wmutex; //Used by writers
 	pthread_mutex_t rentry; //Used by readers
-	pthread_mutex_t readtry; //Used by readers/writers
 	pthread_mutex_t rmutex; //Used by readers
+	
+	pthread_mutex_t readtry; //Used by readers/writers
 	sem_t resource;
 	
-} database;  
-
-	
-	
-	//Global writers resource
-	int writers = 0;
+} database;
 
 
-	void WriterV2(struct database* db) {
+	void WriterV2(database* db) {
 		//<Entry Section>
-		pthread_mutex_lock(&db.wmutex);
-		writers++;
-		if(writers == 1){
-			pthread_mutex_lock(&db.readtry);
+		pthread_mutex_lock(&(db->wmutex));
+		db->writers++;
+		printf("writers is now: %d\n", db->writers);
+		if(db->writers == 1){
+			printf("In if statement: writers is now: %d\n", db->writers);
+			pthread_mutex_lock(&(db->readtry));
+			
 		}
-		pthread_mutex_unlock(&db.wmutex);
-		
-		
+		printf("Done if statement: writers is now: %d\n", db->writers);
+		pthread_mutex_unlock(&(db->wmutex));
+		printf("next\n");
+		sem_wait(&(db->resource));
+		printf("next2\n");
 		//<Critical Section>
-		
+		printf("writer in CS: writers var is: %d\n", db->writers);
 		
 		//<Exit Section>
+		pthread_mutex_unlock(&(db->readtry));
+		pthread_mutex_lock(&(db->wmutex));
+		db->writers--;
+		if(db->writers == 0){
+			pthread_mutex_unlock(&(db->readtry));
+		}
+		pthread_mutex_unlock(&(db->wmutex));
+		sem_post(&(db->resource));
 		
 	}
 
 
-	void ReaderV2() {
+	void ReaderV2(database* db){
+		//<Entry Section>
+		pthread_mutex_lock(&(db->rentry));
+		pthread_mutex_lock(&(db->readtry));
+		pthread_mutex_lock(&(db->rmutex));
+		db->readers++;
+		if(db->readers == 1){
+			//db->resource
+		}
+		//<Critical Section>
+		
+		
+		//<Exit Section>
 		
 		
 	}
@@ -73,17 +95,24 @@ typedef struct {
 			exit(1);
 		}
 		
-		//Create threads, TODO
+		printf("First print in main\n");
+		sem_wait(&db.resource);
 		
+		//Create threads, TODO
+		WriterV2(&db);
 		
 		//Destroy mutexes
 		
 		int errorCheck2 = pthread_mutex_destroy(&db.wmutex);
+		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.rentry);
-		errorCheck2 += pthread_mutex_destroy(&db.readytry);
+		printf("errorCheck %d\n", errorCheck2);
+		errorCheck2 += pthread_mutex_destroy(&db.readtry);
+		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.rmutex);
+		printf("errorCheck %d\n", errorCheck2);
 		if(errorCheck2 != 0){
-			printf("We failed to break a mutex.");
+			printf("We failed to break a mutex with errorCheck %d", errorCheck2);
 			exit(1);
 		}
 		errorCheck2 = sem_destroy(&db.resource);
