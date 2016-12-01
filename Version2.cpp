@@ -24,51 +24,69 @@ typedef struct {
 } database;
 
 
-	void WriterV2(database* db) {
+	void WriterV2(void* input) {
+		database* db = (database*) input;
+		
 		//<Entry Section>
 		pthread_mutex_lock(&(db->wmutex));
 		db->writers++;
-		printf("writers is now: %d\n", db->writers);
+		printf("writer in entry: writers var is now: %d\n", db->writers);
 		if(db->writers == 1){
-			printf("In if statement: writers is now: %d\n", db->writers);
+			printf("writer if statement: writers is now: %d\n", db->writers);
 			pthread_mutex_lock(&(db->readtry));
 			
 		}
-		printf("Done if statement: writers is now: %d\n", db->writers);
+		printf("Done writer if statement: writers is now: %d\n", db->writers);
 		pthread_mutex_unlock(&(db->wmutex));
-		printf("next\n");
-		sem_wait(&(db->resource));
-		printf("next2\n");
+		
+		//Lock resource
+		sem_wait(&(db->resource));		
+		
 		//<Critical Section>
 		printf("writer in CS: writers var is: %d\n", db->writers);
 		
 		//<Exit Section>
-		pthread_mutex_unlock(&(db->readtry));
+		sem_post(&(db->resource));
 		pthread_mutex_lock(&(db->wmutex));
 		db->writers--;
+		printf("writer leaving CS: writers var is: %d\n", db->writers);
 		if(db->writers == 0){
 			pthread_mutex_unlock(&(db->readtry));
 		}
 		pthread_mutex_unlock(&(db->wmutex));
-		sem_post(&(db->resource));
 		
 	}
 
 
-	void ReaderV2(database* db){
+	void ReaderV2(void* input){
+		database* db = (database*) input;
+		
 		//<Entry Section>
 		pthread_mutex_lock(&(db->rentry));
 		pthread_mutex_lock(&(db->readtry));
 		pthread_mutex_lock(&(db->rmutex));
 		db->readers++;
+		printf("reader in entry: readers is now %d\n", db->readers);
 		if(db->readers == 1){
-			//db->resource
+			printf("reader locking resource: readers var is: %d\n", db->readers);
+			sem_wait(&(db->resource));
 		}
+		pthread_mutex_unlock(&(db->rmutex));
+		pthread_mutex_unlock(&(db->readtry));
+		pthread_mutex_unlock(&(db->rentry));
+		
 		//<Critical Section>
 		
 		
 		//<Exit Section>
-		
+		pthread_mutex_lock(&(db->rmutex));
+		db->readers--;
+		printf("reader leaving CS: readers var is: %d\n", db->readers);
+		if(db->readers == 0){
+			printf("reader unlocking resource: readers var is: %d\n", db->readers);
+			sem_post(&(db->resource));
+		}
+		pthread_mutex_unlock(&(db->rmutex));
 		
 	}
 
@@ -89,17 +107,15 @@ typedef struct {
 			exit(1);
 		}
 		
-		errorCheck =  sem_init(&db.resource,0,0);
+		errorCheck =  sem_init(&db.resource,0,1);
 		if(errorCheck == -1){
 			printf("A semaphore initialization failed");
 			exit(1);
 		}
 		
-		printf("First print in main\n");
-		sem_wait(&db.resource);
-		
 		//Create threads, TODO
 		WriterV2(&db);
+		ReaderV2(&db);
 		
 		//Destroy mutexes
 		
