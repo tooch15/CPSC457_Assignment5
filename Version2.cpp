@@ -10,6 +10,9 @@
 
 	void* WriterV2(void* arg);
 	void* ReaderV2(void* arg);
+	
+#define NUM_WRITERS 30
+#define NUM_READERS 400
 
 typedef struct {
 	int writers;
@@ -24,6 +27,8 @@ typedef struct {
 	pthread_mutex_t readtry; //Used by readers/writers
 	sem_t resource;
 	
+	int value;
+	
 } database;
 
 
@@ -33,26 +38,31 @@ typedef struct {
 		//<Entry Section>
 		pthread_mutex_lock(&(db->wmutex));
 		db->writers++;
-		printf("writer in entry: writers var is now: %d\n", db->writers);
 		if(db->writers == 1){
-			printf("writer if statement: writers is now: %d\n", db->writers);
 			pthread_mutex_lock(&(db->readtry));
-			
 		}
-		printf("Done writer if statement: writers is now: %d\n", db->writers);
 		pthread_mutex_unlock(&(db->wmutex));
 		
 		//Lock resource
-		sem_wait(&(db->resource));		
-		
+		sem_wait(&(db->resource));	
+		printf("Writer locked resource\n");
+
 		//<Critical Section>
-		printf("writer in CS: writers var is: %d\n", db->writers);
+		int wait = rand() % 100 + 1;
+		wait *= 100000;
+		for (int k = 0; k < wait; k++);
+		
+		
+		db->value += 5;
+		printf("------------------------Writing %d to the shared variable------------------------\n", db->value);
+		
 		
 		//<Exit Section>
 		sem_post(&(db->resource));
+		printf("Writer unlocked resource\n");
+
 		pthread_mutex_lock(&(db->wmutex));
 		db->writers--;
-		printf("writer leaving CS: writers var is: %d\n", db->writers);
 		if(db->writers == 0){
 			pthread_mutex_unlock(&(db->readtry));
 		}
@@ -71,25 +81,28 @@ typedef struct {
 		pthread_mutex_lock(&(db->readtry));
 		pthread_mutex_lock(&(db->rmutex));
 		db->readers++;
-		printf("reader in entry: readers is now %d\n", db->readers);
 		if(db->readers == 1){
-			printf("reader locking resource: readers var is: %d\n", db->readers);
 			sem_wait(&(db->resource));
+			printf("Reader locked resource\n");
+
 		}
 		pthread_mutex_unlock(&(db->rmutex));
 		pthread_mutex_unlock(&(db->readtry));
 		pthread_mutex_unlock(&(db->rentry));
 		
 		//<Critical Section>
+		int wait = rand() % 100 + 1;
+		wait *= 100000;
+		for (int k = 0; k < wait; k++);
 		
+		printf("The value of the resource in the database is: %d\n", db->value);
 		
 		//<Exit Section>
 		pthread_mutex_lock(&(db->rmutex));
 		db->readers--;
-		printf("reader leaving CS: readers var is: %d\n", db->readers);
 		if(db->readers == 0){
-			printf("reader unlocking resource: readers var is: %d\n", db->readers);
 			sem_post(&(db->resource));
+			printf("Reader unlocked resource\n");
 		}
 		pthread_mutex_unlock(&(db->rmutex));
 		
@@ -103,6 +116,7 @@ typedef struct {
 		database db;
 		db.readers = 0;
 		db.writers = 0;
+		db.value = 0;
 		
 		//Initialize mutexes
 		int errorCheck = pthread_mutex_init(&db.wmutex, NULL);
@@ -120,42 +134,45 @@ typedef struct {
 			exit(1);
 		}
 		
-		//Create threads, TODO
+		//Create Threads
 		
 		void *arg = (void*)(&db);
 		pthread_attr_t attr;
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 		
-		pthread_t writerThread;
-		pthread_t readerThread;
+		pthread_t readerThread[NUM_READERS];
+		pthread_t writerThread[NUM_WRITERS];
 		
-		pthread_create(&readerThread, &attr, ReaderV2, arg);
-		pthread_create(&writerThread, &attr, WriterV2, arg);
+		int j = 0;
+		for (int k = 0; k < NUM_READERS; k++) {
+			pthread_create(&readerThread[k], &attr, ReaderV2, arg);
+			if (k % 10 == 0) {
+				pthread_create(&writerThread[j], &attr, WriterV2, arg);
+				j++;
+			}
+		}
 		
-		int join_status = pthread_join(writerThread, NULL);
-		if(join_status){
-			printf("join_status for writer: %d\n", join_status);
+		int writer_join_count = 0;
+		for(int k = 0; k < NUM_READERS; k++){
+			pthread_join(readerThread[k], NULL);
+			if (k % 10 == 0) {
+				pthread_join(writerThread[writer_join_count], NULL);
+				writer_join_count++;
+			}
 		}
-		join_status = pthread_join(readerThread, NULL);
-		if(join_status){
-			printf("join_status for reader: %d\n", join_status);
-		}
+		
 		pthread_exit(NULL);
 		
 		
 		//Destroy mutexes
 		
 		int errorCheck2 = pthread_mutex_destroy(&db.wmutex);
-		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.rentry);
-		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.readtry);
-		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.rmutex);
-		printf("errorCheck %d\n", errorCheck2);
 		if(errorCheck2 != 0){
-			printf("We failed to break a mutex with errorCheck %d", errorCheck2);
+			printf("We failed to break down a mutex with errorCheck %d", errorCheck2);
 			exit(1);
 		}
 		errorCheck2 = sem_destroy(&db.resource);
