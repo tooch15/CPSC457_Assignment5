@@ -10,6 +10,9 @@
 
 	void* WriterV2(void* arg);
 	void* ReaderV2(void* arg);
+	
+#define NUM_WRITERS 10
+#define NUM_READERS 100
 
 typedef struct {
 	int writers;
@@ -120,15 +123,41 @@ typedef struct {
 			exit(1);
 		}
 		
-		//Create threads, TODO
+		//Create Threads
 		
 		void *arg = (void*)(&db);
 		pthread_attr_t attr;
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 		
-		pthread_t writerThread;
+		pthread_t readerThread[NUM_READERS];
+		pthread_t writerThread[NUM_WRITERS];
+		
+		int j = 0;
+		for (int k = 0; k < NUM_READERS; k++) {
+			pthread_create(&readerThread[k], &attr, ReaderV2, arg);
+			if (k % 10 == 0) {
+				pthread_create(&writerThread[j], &attr, WriterV2, arg);
+				j++;
+			}
+		}
+		
+		int writer_join_count = 0;
+		for(int k = 0; k < NUM_READERS; k++){
+			pthread_join(readerThread[k], NULL);
+			if (k % 10 == 0) {
+				pthread_join(writerThread[writer_join_count], NULL);
+				writer_join_count++;
+			}
+		}
+		
+		pthread_exit(NULL);
+
+		
+		//OLD CODE
+/*		
 		pthread_t readerThread;
+		pthread_t writerThread;
 		
 		pthread_create(&readerThread, &attr, ReaderV2, arg);
 		pthread_create(&writerThread, &attr, WriterV2, arg);
@@ -141,19 +170,17 @@ typedef struct {
 		if(join_status){
 			printf("join_status for reader: %d\n", join_status);
 		}
+		
 		pthread_exit(NULL);
+*/
 		
 		
 		//Destroy mutexes
 		
 		int errorCheck2 = pthread_mutex_destroy(&db.wmutex);
-		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.rentry);
-		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.readtry);
-		printf("errorCheck %d\n", errorCheck2);
 		errorCheck2 += pthread_mutex_destroy(&db.rmutex);
-		printf("errorCheck %d\n", errorCheck2);
 		if(errorCheck2 != 0){
 			printf("We failed to break a mutex with errorCheck %d", errorCheck2);
 			exit(1);
