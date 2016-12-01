@@ -13,12 +13,8 @@
 
 	void* WriterV1(void* arg);
 	void* ReaderV1(void* arg);
-	void setLock(int* lock);
-	void resetLock(int* lock);
 	
 	pthread_mutex_t mutexLock;
-	int resourceLock;
-	
 	sem_t resourceSem;
 	
 	struct Database {
@@ -31,11 +27,9 @@
 
 	void* WriterV1(void* arg) {
 		
-	//	printf("Inside of Writer\n");
 		
 		Database* db = (Database*) arg;
 		
-		//setLock(&resourceLock);
 		sem_wait(&resourceSem);
 		
 		printf("Writer locked resource\n");
@@ -50,7 +44,6 @@
 		printf("------------------------Writing %d to the shared variable------------------------\n", db->value);
 		
 		
-		//resetLock(&resourceLock);
 		sem_post(&resourceSem);
 		
 		printf("Writer unlocked resource\n");
@@ -61,8 +54,6 @@
 
 
 	void* ReaderV1(void* arg) {
-		
-		//printf("Inside of Reader\n");
 	
 		Database* db = (Database*) arg;
 	
@@ -72,7 +63,6 @@
 		
 		if (db->readers == 1) {
 			sem_wait(&resourceSem);
-			//setLock(&resourceLock);
 			printf("Reader locked resource\n");
 		}
 		
@@ -90,7 +80,6 @@
 		
 		if (db->readers == 0) {
 			sem_post(&resourceSem);
-			//resetLock(&resourceLock);
 			printf("Reader unlocked resource\n");
 		}
 		
@@ -113,15 +102,15 @@
 		pthread_attr_init(&attr);
 		pthread_attr_setdetachstate(&attr, PTHREAD_CREATE_JOINABLE);
 		
-		resourceLock = 0;
+		int semFailCheck = sem_init(&resourceSem, 0, 1);
 		
-		sem_init(&resourceSem, 0, 1);
+		if (semFailCheck == -1)
+			printf("Error creating semaphore");
 				
 		int errorCheck = pthread_mutex_init(&mutexLock, NULL);
 		
 		if (errorCheck != 0) {
 			printf("The initilization of the mutex lock encountered an error with code: %d", errorCheck);
-		//	exit(1);
 		}
 		
 		void *arg = (void*)(&db);
@@ -150,24 +139,5 @@
 		
 		return 0;
 	
-	}
-	
-	void setLock(int* lock) {
-		
-		while (1) {
-			
-			int check = __sync_val_compare_and_swap(&(*lock), 0, 1);
-			
-			if (check == 0)
-				break;
-			
-		}
-		
-	}
-	
-	void resetLock(int* lock) {
-		
-		__sync_val_compare_and_swap(&(*lock), 1, 0);
-		
 	}
 

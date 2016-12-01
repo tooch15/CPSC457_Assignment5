@@ -1,7 +1,0 @@
-Exception: STATUS_ACCESS_VIOLATION at eip=00401327
-eax=0061CC58 ebx=20036450 ecx=00000021 edx=00E2197B esi=200364B4 edi=FFEAFFE8
-ebp=FFEACE08 esp=FFEACDE0 program=C:\Users\tooch\OneDrive\Documents\CPSC_457\Assignment_5\a.exe, pid 10328, thread unknown (0x2468)
-cs=0023 ds=002B es=002B fs=0053 gs=002B ss=002B
-Stack trace:
-Frame     Function  Args
-End of stack trace
